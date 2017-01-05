@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const algorithm = 'md5';
 
 const input = 'ihaygndm';
 const test = 'abc'; // answer 22728 (64th key index);

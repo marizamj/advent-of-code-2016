@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const algorithm = 'md5';
 
 const input = 'reyedfim';
 const test  = 'abc';
