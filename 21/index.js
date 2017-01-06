@@ -80,36 +80,30 @@ const actions = {
 const scramble = (input, password) => {
   const commands = parseInput(input);
 
-  commands.forEach(command => {
-    password = actions[command.action](password, ...command.args);
-  });
-
-  return password;
+  return commands.reduce((res, command) =>
+    actions[command.action](res, ...command.args), password);
 };
 
-const unscramble = (input, password) => {
-  function permute(arr, path) {
-    path = path || [];
+const without = (arr, elementToDrop) => arr.filter(el => el !== elementToDrop);
 
+const getPermutations = arr => {
+  function permute(arr, path = []) {
     if (arr.length === 0) permutations.push(path);
 
-    arr.forEach((el, ind) => {
-      const newPath = path.concat();
-      newPath.push(el);
-      const newArr = arr.concat();
-      newArr.splice(ind, 1);
-
-      permute(newArr, newPath);
+    arr.forEach((el) => {
+      permute(without(arr, el), [...path, el]);
     });
   }
-
-  const arr = password.split('');
   const permutations = [];
 
   permute(arr);
 
-  return permutations.find(el => scramble(input, el.join('')) === password).join('');
+  return permutations;
 }
+
+const unscramble = (input, password) =>
+  getPermutations(password.split('')).find(el =>
+    scramble(input, el.join('')) === password).join('');
 
 console.log(scramble(input, 'abcdefgh'));
 console.log(unscramble(input, 'fbgdceah'));
