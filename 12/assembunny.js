@@ -46,12 +46,12 @@ const commands = {
     state.position++;
   },
 
-  mul: (state, resultReg, mulRegs, toZeroRegs) => {
-    const multipliers = mulRegs.map(el => state[el] ? state[el] : el);
+  mul: (state, dest, values, counters) => {
+    const multipliers = values.map(el => state[el] ? state[el] : el);
 
-    state[resultReg] = multipliers[0] * multipliers[1];
-    state[toZeroRegs[0]] = 0;
-    state[toZeroRegs[1]] = 0;
+    state[dest] = multipliers[0] * multipliers[1];
+    state[counters[0]] = 0;
+    state[counters[1]] = 0;
 
     state.position += 8;
   }
@@ -69,11 +69,11 @@ const mulMask = `
 `;
 
 const compare = (result, el, maskEl) => {
-  if (maskEl === undefined && el === undefined) return true;
   if (typeof maskEl === 'number') return el === maskEl;
-  if (maskEl.startsWith('$') && typeof maskEl === 'string') {
+  if (typeof maskEl === 'string' && maskEl.startsWith('$')) {
     return result[maskEl] ? result[maskEl] === el : true;
   }
+  return true;
 };
 
 const matchMask = (block, mask) =>
@@ -97,24 +97,31 @@ const isMultiply = (commandList, state) => {
 
   if (match) {
     return {
-      resultReg: match.$dest,
-      mulRegs: [ match.$value1, match.$value2 ],
-      toZeroRegs: [ match.$counter1, match.$counter2 ]
+      dest: match.$dest,
+      values: [ match.$value1, match.$value2 ],
+      counters: [ match.$counter1, match.$counter2 ]
     };
   }
 
   return null;
 };
 
-const execute = (input, state = { position: 0, a: 0, b: 0, c: 0, d: 0 }) => {
+const defaultOptions = {
+  state: { position: 0, a: 0, b: 0, c: 0, d: 0 },
+  shouldOptimize: true,
+};
+
+const execute = (input, options) => {
+  const { state, shouldOptimize } = Object.assign({}, defaultOptions, options);
+
   let commandList = parse(input);
 
   while (state.position < commandList.length) {
-    const multiply = isMultiply(commandList, state);
+    const multiply = shouldOptimize && isMultiply(commandList, state);
 
     if (multiply) {
-      const { resultReg, mulRegs, toZeroRegs } = multiply;
-      commands.mul(state, resultReg, mulRegs, toZeroRegs);
+      const { dest, values, counters } = multiply;
+      commands.mul(state, dest, values, counters);
 
     } else {
       const { action, x, y } = commandList[state.position];
