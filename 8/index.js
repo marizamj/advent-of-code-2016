@@ -13,47 +13,35 @@ const create2dMatrix = (h, w) =>
     Array.from({ length: w }).map(cell => '.'));
 
 const shift = {
-  row: (matrix, ind, n) => {
-
-    return matrix.map((row, ri) => {
-
+  row: (matrix, ind, n) =>
+    matrix.map((row, ri) => {
       if (ri === ind) {
         return row.reduce((newRow, cell, i) => {
-
           newRow[(i + n) % row.length] = cell;
           return newRow;
 
         }, Array.from({ length: row.length }));
+      } else return row;
+    }),
 
-      } else {
-        return row;
-      }
-    });
-  },
-
-  column: (matrix, ind, n) => {
-    return matrix.map((row, ri) => {
-      return row.map((cell, ci) => {
+  column: (matrix, ind, n) =>
+    matrix.map((row, ri) =>
+      row.map((cell, ci) => {
         if (ci === ind) {
           return matrix[ri - n] ?
             matrix[ri - n][ci]
             :
             matrix[(ri - n) + matrix.length][ci];
-        } else {
-          return cell;
-        }
-      });
-    });
-  }
-}
+        } else return cell;
+    }))
+};
 
 const manual = {
   rect: (matrix, instructions) => {
     const [ width, height ] = instructions[0].split('x');
 
     return matrix.map((row, y) => row.map((cell, x) =>
-      y < height && x < width ? '#' : cell )
-    )
+      y < height && x < width ? '#' : cell ))
   },
 
   rotate: (matrix, instructions) => {
@@ -66,19 +54,16 @@ const manual = {
       :
       shift.column(matrix, index, turns);
   }
-}
+};
 
-const execute = (matrix, commands) => {
-  return commands.reduce((newMatrix, command) =>
+const execute = (matrix, commands) =>
+  commands.reduce((newMatrix, command) =>
     manual[command.action](newMatrix, command.instructions), matrix.concat());
-}
 
 const countLights = (matrix) =>
   matrix.reduce((result, row) =>
-    result + row.reduce((res, cell) => {
-      if (cell === '#') return res + 1;
-      if (cell === '.') return res;
-    }, 0), 0);
+    result + row.reduce((res, cell) =>
+      cell === '#' ? res + 1 : res, 0), 0);
 
 const screen = create2dMatrix(6, 50);
 
@@ -89,5 +74,3 @@ const executed = execute(screen, commands);
 const result = countLights(executed);
 
 console.log(executed.map(line => line.join('')));
-
-

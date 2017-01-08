@@ -46,7 +46,13 @@ const commands = {
     state.position++;
   },
 
+  out: (commandList, state, x) => {
+    console.log(state[x]);
+    state.position++;
+  },
+
   mul: (state, dest, values, counters) => {
+    console.log('mult');
     const multipliers = values.map(el => state[el] ? state[el] : el);
 
     state[dest] = multipliers[0] * multipliers[1];
@@ -54,7 +60,7 @@ const commands = {
     state[counters[1]] = 0;
 
     state.position += 8;
-  }
+  },
 };
 
 const mulMask = `
