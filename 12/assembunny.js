@@ -1,3 +1,5 @@
+const masks = require(__dirname + '/assembunny_masks');
+
 const nip = n => isNaN(Number(n)) ? n : Number(n);
 
 const zip = ([a0, ...aRest], [b0, ...bRest]) =>
@@ -11,48 +13,70 @@ const parse = input =>
     return { action, x: nip(x), y: nip(y) };
   });
 
+const stateOrValue = (state, x) => state[x] !== undefined ? state[x] : x;
+
 const commands = {
-  cpy: (commandList, state, x, y) => {
+  cpy: (output, commandList, state, x, y) => {
     if (isNaN(y) && isNaN(x)) state[y] = state[x];
     if (isNaN(y) && !isNaN(x)) state[y] = x;
     state.position++;
   },
 
-  inc: (commandList, state, x) => {
+  inc: (output, commandList, state, x) => {
     state[x]++;
     state.position++;
   },
 
-  dec: (commandList, state, x) => {
+  dec: (output, commandList, state, x) => {
     state[x]--;
     state.position++;
   },
 
-  jnz: (commandList, state, x, y) => {
-    if (!isNaN(x) && x !== 0) {
-      state.position += (state[y] || y);
+  jnz: (output, commandList, state, x, y) => {
+    x = stateOrValue(state, x);
+    y = stateOrValue(state, y);
 
-    } else {
+    // console.log('!' + x);
 
-      if (state[x] !== 0) state.position += (state[y] || y);
-      else state.position++;
-    }
+    if (x !== 0) state.position += y;
+    else state.position++;
+
+    // if (!isNaN(x) && x !== 0) {
+    //   state.position += (state[y] || y);
+
+    // } else {
+
+    //   if (state[x] !== 0) state.position += (state[y] || y);
+    //   else state.position++;
+    // }
   },
 
-  tgl: (commandList, state, x) => {
-    const n = state[x] || x;
+  tgl: (output, commandList, state, x) => {
+    const n = stateOrValue(state, x);
     const target = commandList[state.position + n];
     if (target) target.action = toggle[target.action];
     state.position++;
   },
 
-  out: (commandList, state, x) => {
-    console.log(state[x]);
+  out: (output, commandList, state, x) => {
+    // console.log(state[x]);
+    output.push(state[x]);
     state.position++;
   },
 
+  sub: (state, dest, [ minuend, subtrahendReg ]) => {
+    // console.log('sub');
+    minuend = stateOrValue(state, minuend);
+    subtrahend = stateOrValue(state, subtrahendReg);
+
+    state[dest] = minuend - subtrahend;
+    state[subtrahendReg] = 0;
+
+    state.position += 6;
+  },
+
   mul: (state, dest, values, counters) => {
-    console.log('mult');
+    // console.log('mult');
     const multipliers = values.map(el => state[el] ? state[el] : el);
 
     state[dest] = multipliers[0] * multipliers[1];
@@ -61,18 +85,19 @@ const commands = {
 
     state.position += 8;
   },
-};
 
-const mulMask = `
-  cpy $value1 $counter1
-  cpy 0 $dest
-  cpy $value2 $counter2
-  inc $dest
-  dec $counter2
-  jnz $counter2 -2
-  dec $counter1
-  jnz $counter1 -5
-`;
+  div: (state, dest, [ dividend, divisor ], [ counter1, counter2 ]) => {
+    // console.log('div');
+    dividend = stateOrValue(state, dividend);
+    divisor = stateOrValue(state, divisor);
+
+    state[dest] = Math.floor(dividend / divisor);
+    state[counter1] = 0;
+    state[counter2] = (dividend / divisor % 1 !== 0) ? divisor - 1 : divisor;
+
+    state.position += 10;
+  }
+};
 
 const compare = (result, el, maskEl) => {
   if (typeof maskEl === 'number') return el === maskEl;
@@ -83,9 +108,10 @@ const compare = (result, el, maskEl) => {
 };
 
 const matchMask = (block, mask) =>
-  zip(block, mask).reduce((result, [ command, maskExpr ]) => {
+  zip(block, parse(mask.pattern)).reduce((result, [ command, maskExpr ]) => {
     if (result === null) return result;
     if (command.action !== maskExpr.action) return null;
+
 
     if (compare(result, command.x, maskExpr.x) && compare(result, command.y, maskExpr.y)) {
       result[maskExpr.x] = command.x;
@@ -93,19 +119,21 @@ const matchMask = (block, mask) =>
     } else return null;
 
     return result;
-  }, {});
+  }, { command: mask.command });
 
-const isMultiply = (commandList, state) => {
-  const currBlock = commandList.slice(state.position, state.position + 8);
-  if (currBlock.length < 8) return null;
+const isOperation = (commandList, state) => {
+  const currBlock = commandList.slice(state.position, state.position + 10);
+  if (currBlock.length < 6) return null;
 
-  const match = matchMask(currBlock, parse(mulMask));
+  const match = masks.reduce((result, mask) =>
+    matchMask(currBlock, mask) || result, null);
 
   if (match) {
     return {
       dest: match.$dest,
       values: [ match.$value1, match.$value2 ],
-      counters: [ match.$counter1, match.$counter2 ]
+      counters: [ match.$counter1, match.$counter2 ],
+      command: match.command
     };
   }
 
@@ -115,27 +143,31 @@ const isMultiply = (commandList, state) => {
 const defaultOptions = {
   state: { position: 0, a: 0, b: 0, c: 0, d: 0 },
   shouldOptimize: true,
+  jumpLimit: Infinity
 };
 
 const execute = (input, options) => {
-  const { state, shouldOptimize } = Object.assign({}, defaultOptions, options);
+  let { state, shouldOptimize, jumpLimit } = Object.assign({}, defaultOptions, options);
 
   let commandList = parse(input);
+  let output = [];
 
-  while (state.position < commandList.length) {
-    const multiply = shouldOptimize && isMultiply(commandList, state);
+  while (jumpLimit && state.position < commandList.length) {
+    const operation = shouldOptimize && isOperation(commandList, state);
 
-    if (multiply) {
-      const { dest, values, counters } = multiply;
-      commands.mul(state, dest, values, counters);
+    if (operation) {
+      const { dest, values, counters, command } = operation;
+      commands[command](state, dest, values, counters);
 
     } else {
       const { action, x, y } = commandList[state.position];
-      commands[action](commandList, state, x, y);
+      commands[action](output, commandList, state, x, y);
     }
+
+    jumpLimit--;
   }
 
-  return state;
+  return { output, endState: state };
 };
 
 module.exports = { commands, execute };
