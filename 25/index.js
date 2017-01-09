@@ -56,7 +56,7 @@ const runOne = (init) => {
   const { output, endState } = assembunny.execute(input, {
     state: { position: 0, a: init, b: 0, c: 0, d: 0 },
     // shouldOptimize: false,
-    jumpLimit: 7000,
+    jumpLimit: 100,
   });
   console.log(init, output, endState);
 }
@@ -66,6 +66,24 @@ const run = () => {
     runOne(i);
   }
 }
+
+const findInitialValue = () => {
+  let i = 0;
+
+  while (true) {
+    const { output, endState } = assembunny.execute(input, {
+      state: { position: 0, a: i, b: 0, c: 0, d: 0 },
+      jumpLimit: 100,
+    });
+
+    if (isGoodSequence(output)) {
+      console.log(i, output);
+      return;
+    }
+
+    i++;
+  }
+};
 
 const checkOptimization = (test, state) =>
   assert.deepEqual(
@@ -78,28 +96,19 @@ const checkOptimization = (test, state) =>
     })
   );
 
-// checkOptimization(testComplex1, { position: 0, a: 1, b: 2, c: 3, d: 4 });
+const isGoodSequence = (arr) =>
+  arr.every((value, index) => index % 2 === 0 ? value === 0 : value === 1);
 
-// checkOptimization(testComplex2, { position: 0, a: 1, b: 2, c: 3, d: 4 });
+checkOptimization(testComplex1, { position: 0, a: 1, b: 2, c: 3, d: 4 });
 
-// checkOptimization(testComplex3, { position: 0, a: 1, b: 2, c: 3, d: 5 });
+checkOptimization(testComplex2, { position: 0, a: 1, b: 2, c: 3, d: 4 });
 
-// checkOptimization(testMul, { position: 0, a: 1, b: 2, c: 3, d: 5 });
+checkOptimization(testComplex3, { position: 0, a: 1, b: 2, c: 3, d: 5 });
 
-// checkOptimization(testDiv, { position: 0, a: 1, b: 2, c: 3, d: 4 });
+checkOptimization(testMul, { position: 0, a: 1, b: 2, c: 3, d: 5 });
 
-// checkOptimization(testSub, { position: 0, a: 1, b: 2, c: 10, d: 3 });
+checkOptimization(testDiv, { position: 0, a: 1, b: 2, c: 3, d: 4 });
 
-// const jnzTest = `
-// jnz 0 0
-// jnz 0 0
-// jnz 0 0
-// jnz 0 0
-// jnz 0 0
-// `;
+checkOptimization(testSub, { position: 0, a: 1, b: 2, c: 10, d: 3 });
 
-// checkOptimization(jnzTest, { position: 0, a: 1, b: 2, c: 10, d: 3 });
-
-run();
-
-// runOne(420);
+findInitialValue();

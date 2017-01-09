@@ -13,16 +13,16 @@ dec a
 `; // a: 42
 
 // part 1
-const output1 = assembunny.execute(input, { shouldOptimize: false });
+const result1 = assembunny.execute(input, { shouldOptimize: false });
 
-console.log(output1.a);
-assert.equal(output1.a, 318003);
+console.log(result1.endState.a);
+assert.equal(result1.endState.a, 318003);
 
 // part 2
-const output2 = assembunny.execute(input, {
+const result2 = assembunny.execute(input, {
   state: { position: 0, a: 0, b: 0, c: 1, d: 0 },
   shouldOptimize: false
 });
 
-console.log(output2.a);
-assert.equal(output2.a, 9227657);
+console.log(result2.endState.a);
+assert.equal(result2.endState.a, 9227657);

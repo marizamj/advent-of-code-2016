@@ -16,86 +16,70 @@ const parse = input =>
 const stateOrValue = (state, x) => state[x] !== undefined ? state[x] : x;
 
 const commands = {
-  cpy: (output, commandList, state, x, y) => {
-    if (isNaN(y) && isNaN(x)) state[y] = state[x];
-    if (isNaN(y) && !isNaN(x)) state[y] = x;
-    state.position++;
+  cpy: (state, args) => {
+    state.set(args.y, args.x);
+    state.add('position', 1);
   },
 
-  inc: (output, commandList, state, x) => {
-    state[x]++;
-    state.position++;
+  inc: (state, args) => {
+    state.add(args.x, 1);
+    state.add('position', 1);
   },
 
-  dec: (output, commandList, state, x) => {
-    state[x]--;
-    state.position++;
+  dec: (state, args) => {
+    state.add(args.x, -1);
+    state.add('position', 1);
   },
 
-  jnz: (output, commandList, state, x, y) => {
-    x = stateOrValue(state, x);
-    y = stateOrValue(state, y);
-
-    // console.log('!' + x);
-
-    if (x !== 0) state.position += y;
-    else state.position++;
-
-    // if (!isNaN(x) && x !== 0) {
-    //   state.position += (state[y] || y);
-
-    // } else {
-
-    //   if (state[x] !== 0) state.position += (state[y] || y);
-    //   else state.position++;
-    // }
+  jnz: (state, args) => {
+    x = state.get(args.x);
+    if (x !== 0) state.add('position', args.y);
+    else state.add('position', 1);
   },
 
-  tgl: (output, commandList, state, x) => {
-    const n = stateOrValue(state, x);
-    const target = commandList[state.position + n];
-    if (target) target.action = toggle[target.action];
-    state.position++;
+  tgl: (state, args) => {
+    x = state.get(args.x);
+    state.tgl(state.get('position') + x);
+    state.add('position', 1);
   },
 
-  out: (output, commandList, state, x) => {
-    // console.log(state[x]);
-    output.push(state[x]);
-    state.position++;
+  out: (state, args) => {
+    state.out(args.x);
+    state.add('position', 1);
   },
 
-  sub: (state, dest, [ minuend, subtrahendReg ]) => {
-    // console.log('sub');
-    minuend = stateOrValue(state, minuend);
-    subtrahend = stateOrValue(state, subtrahendReg);
+  sub: (state, args) => {
+    const { $value1, $value2, $dest } = args;
+    const value1 = state.get($value1);
+    const value2 = state.get($value2);
 
-    state[dest] = minuend - subtrahend;
-    state[subtrahendReg] = 0;
-
-    state.position += 6;
+    state.set($dest, value1 - value2);
+    state.set($value2, 0);
+    state.add('position', 6);
   },
 
-  mul: (state, dest, values, counters) => {
-    // console.log('mult');
-    const multipliers = values.map(el => state[el] ? state[el] : el);
+  mul: (state, args) => {
+    const { $value1, $value2, $init, $counter1, $counter2, $dest } = args;
+    const value1 = state.get($value1);
+    const value2 = state.get($value2);
+    const init = state.get($init);
 
-    state[dest] = multipliers[0] * multipliers[1];
-    state[counters[0]] = 0;
-    state[counters[1]] = 0;
-
-    state.position += 8;
+    state.set($dest, init + value1 * value2);
+    state.set($counter1, 0);
+    state.set($counter2, 0);
+    state.add('position', 8);
   },
 
-  div: (state, dest, [ dividend, divisor ], [ counter1, counter2 ]) => {
-    // console.log('div');
-    dividend = stateOrValue(state, dividend);
-    divisor = stateOrValue(state, divisor);
+  div: (state, args) => {
+    const { $value1, $value2, $counter1, $counter2, $dest } = args;
 
-    state[dest] = Math.floor(dividend / divisor);
-    state[counter1] = 0;
-    state[counter2] = (dividend / divisor % 1 !== 0) ? divisor - 1 : divisor;
+    const value1 = state.get($value1);
+    const value2 = state.get($value2);
 
-    state.position += 10;
+    state.set($dest, Math.floor(value1 / value2));
+    state.set($counter1, 0);
+    state.set($counter2, (value1 / value2 % 1 !== 0) ? value2 - 1 : value2);
+    state.add('position', 10);
   }
 };
 
@@ -112,32 +96,20 @@ const matchMask = (block, mask) =>
     if (result === null) return result;
     if (command.action !== maskExpr.action) return null;
 
-
     if (compare(result, command.x, maskExpr.x) && compare(result, command.y, maskExpr.y)) {
       result[maskExpr.x] = command.x;
       result[maskExpr.y] = command.y;
     } else return null;
 
     return result;
-  }, { command: mask.command });
+  }, { action: mask.command });
 
 const isOperation = (commandList, state) => {
   const currBlock = commandList.slice(state.position, state.position + 10);
   if (currBlock.length < 6) return null;
 
-  const match = masks.reduce((result, mask) =>
+  return masks.reduce((result, mask) =>
     matchMask(currBlock, mask) || result, null);
-
-  if (match) {
-    return {
-      dest: match.$dest,
-      values: [ match.$value1, match.$value2 ],
-      counters: [ match.$counter1, match.$counter2 ],
-      command: match.command
-    };
-  }
-
-  return null;
 };
 
 const defaultOptions = {
@@ -155,14 +127,20 @@ const execute = (input, options) => {
   while (jumpLimit && state.position < commandList.length) {
     const operation = shouldOptimize && isOperation(commandList, state);
 
-    if (operation) {
-      const { dest, values, counters, command } = operation;
-      commands[command](state, dest, values, counters);
+    const stateAccessor = {
+      add: (register, value) => state[register] += stateOrValue(state, value),
+      set: (register, value) => state[register] = stateOrValue(state, value),
+      get: (value) => stateOrValue(state, value),
+      out: (value) => output.push(stateOrValue(state, value)),
+      tgl: (i) => {
+        if (commandList[i]) commandList[i].action = toggle[commandList[i].action];
+      },
+    };
 
-    } else {
-      const { action, x, y } = commandList[state.position];
-      commands[action](output, commandList, state, x, y);
-    }
+    const action =  operation ? operation.action : commandList[state.position].action;
+    const args = operation || commandList[state.position];
+
+    commands[action](stateAccessor, args);
 
     jumpLimit--;
   }
