@@ -1,17 +1,6 @@
 const fs = require('fs');
 
 const input = 1352;
-const test = 10;
-/*
-  0123456789
-0 .#.####.##
-1 ..#..#...#
-2 #....##...
-3 ###.#.###.
-4 .##..#..#.
-5 ..##....#.
-6 #...##.###
-*/
 
 const START = { x: 1, y: 1 };
 const END = { x: 31, y: 39 };
@@ -33,13 +22,13 @@ const getMaze = (h, w, input) => {
 
     return count1bits(bin) % 2 === 0 ? cell : '#';
   }));
-}
+};
 
 const getPossibleSteps = (maze, pos) => {
   const possibleDirections = [
     { x: pos.x, y: pos.y + 1 },
-    { x: pos.x, y: pos.y - 1 },
     { x: pos.x + 1, y: pos.y },
+    { x: pos.x, y: pos.y - 1 },
     { x: pos.x - 1, y: pos.y }
   ];
 
@@ -63,51 +52,44 @@ const findShortestPath = (maze, start, end) => {
     possibleSteps.forEach(step => {
       findPath(newMaze, step, end, count + 1);
     });
-  }
+  };
 
   const paths = [];
 
   findPath(maze, start, end, 0);
 
   return paths.sort((a, b) => a - b)[0];
-}
+};
+
+console.log(findShortestPath(getMaze(45, 45, input), START, END));
 
 // part 2
 
-const findLocationsInSteps = (steps, maze, start) => {
-  const find = (steps, maze, start, count) => {
-    used.push(start);
+const getString = loc => `x${loc.x}y${loc.y}`;
 
-    if (count <= steps) {
+const findLocations = (maze, start, steps) => {
+  let locations = [ start ];
+  let visited = { [getString(start)]: true };
+  let i = 0;
 
-      result[`x${start.x}y${start.y}`] = true;
+  while (i < steps) {
+    locations = locations.reduce((result, loc) => {
+      return result.concat(getPossibleSteps(maze, loc).filter(el => {
+        const str = getString(el);
+        return !visited[str];
+      }));
+    }, []);
 
-      const possibleSteps = getPossibleSteps(maze, start);
+    locations.forEach(loc => {
+      visited[getString(loc)] = true;
+    });
 
-      possibleSteps.forEach(step => {
-        if (!used.find(el => el.x === step.x && el.y === step.y)) {
-          find(steps, maze, step, count + 1);
-        }
-      });
-    }
+    i++;
   }
 
-  const used = [];
-  const result = {};
+  return Object.keys(visited).length;
+};
 
-  find(steps, maze, start, 0);
+const maze = getMaze(50, 50, input);
 
-  // return result;
-  return Object.keys(result).length;
-}
-
-
-const maze = getMaze(10, 10, input)
-
-console.log(maze);
-
-// console.log(findLocationsInSteps(50, maze, START));
-// console.log(findShortestPath(maze, START, END));
-
-
-
+console.log(findLocations(maze, START, 50));
