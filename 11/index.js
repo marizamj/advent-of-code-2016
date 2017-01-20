@@ -14,31 +14,46 @@ a ruthenium-compatible microchip, and a plutonium-compatible microchip|
 The fourth floor contains nothing relevant.
 `;
 
-const _ = null;
+const dictionary = {
+  PmG: 'a',
+  PmM: 'b',
+  DiG: 'c',
+  DiM: 'd',
+  ElG: 'e',
+  ElM: 'f',
+  CoG: 'g',
+  CoM: 'h',
+  CmG: 'i',
+  CmM: 'j',
+  RuG: 'k',
+  RuM: 'l',
+  PuG: 'm',
+  PuM: 'n'
+};
 
-const initPlan = [
-  [  'E' , 'PmG', 'PmM',   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  , 'DiG', 'DiM', 'ElG', 'ElM' ], // 1
-  [   _  ,   _  ,   _  , 'CoG',   _  , 'CmG',   _  , 'RuG',   _  , 'PuG',   _  ,   _  ,   _  ,   _  ,   _   ], // 2
-  [   _  ,   _  ,   _  ,   _  , 'CoM',   _  , 'CmM',   _  , 'RuM',   _  , 'PuM',   _  ,   _  ,   _  ,   _   ], // 3
-  [   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _  ,   _   ]  // 4
-];
+// 'DiG', 'DiM', 'ElG', 'ElM'
 
-const heuristic = plan =>
-  plan.reduce((result, floor, ind) =>
-    result + floor.reduce((res, el) =>
-      el !== null && el !== 'E' ?
-        res + plan.length - 1 - ind
-        :
-        res, 0), 0);
+const initPlan = {
+  currentFloor: 0,
+  plan: [
+    [ 'PmG', 'PmM' ], // 1
+    [ 'CoG', 'CmG', 'RuG', 'PuG' ], // 2
+    [ 'CoM', 'CmM', 'RuM', 'PuM' ], // 3
+    [ ]  // 4
+  ]
+};
 
+const heuristic = state =>
+  state.plan.reduce((result, floor, ind) =>
+    result + floor.reduce((res, el) => res + state.plan.length - 1 - ind, 0), 0);
 
-const isSafe = plan =>
-  plan.every(floor => floor.every(el => {
-    if (el !== null && el[2] === 'M') {
+const isSafe = state =>
+  state.plan.every(floor => floor.every(el => {
+    if (el.charAt(2) === 'M') {
       const element = el.slice(0, 2);
       const hasOwnGen = floor.includes(`${element}G`);
       const hasOtherGen = floor.some(el =>
-        el && !el.startsWith(element) && el[2] === 'G');
+        !el.startsWith(element) && el.charAt(2) === 'G');
 
       return hasOwnGen || !hasOtherGen;
     }
@@ -46,48 +61,55 @@ const isSafe = plan =>
     return true;
   }));
 
+const move = (state, elements, direction) => {
+  const { currentFloor, plan } = state;
 
-const move = (plan, indices, currFloor, direction) => {
-  if (direction === 'down' && currFloor === 0) return null;
-  if (direction === 'up' && currFloor === plan.length - 1) return null;
-
-  const floorToChange = direction === 'down' ? currFloor - 1 : currFloor + 1;
-
+  const nextFloor = direction === 'down' ? currentFloor - 1 : currentFloor + 1;
   const newPlan = plan.map(floor => floor.map(el => el));
-  newPlan[floorToChange][0] = 'E';
-  newPlan[currFloor][0] = _;
 
-  indices.forEach(ind => {
-    newPlan[floorToChange][ind] = newPlan[currFloor][ind];
-    newPlan[currFloor][ind] = _;
+  elements.forEach(el => {
+    newPlan[nextFloor].push(newPlan[currentFloor].find(e => e === el));
+    newPlan[currentFloor] = newPlan[currentFloor].filter(e => e !== el);
   });
 
-  return newPlan;
-}
+  return { currentFloor: nextFloor, plan: newPlan };
+};
 
+const nextSteps = state => {
+  const { currentFloor, plan } = state;
 
-const nextSteps = plan => {
-  const currFloor = plan.findIndex(floor => floor[0] === 'E');
-  const indices = plan[currFloor].map((el, i) =>
-    el !== null ? i : el).filter(el => el !== null).slice(1);
-
-  const combinations = indices.reduce((result, el, ind) => {
+  const combinations = plan[currentFloor].reduce((result, el, ind, arr) => {
     result.push([ el ]);
-    for (let i = ind + 1; i < indices.length; i++) {
-      result.push([ el ].concat(indices[i]));
+    for (let i = ind + 1; i < arr.length; i++) {
+      result.push([ el ].concat(arr[i]));
     }
     return result;
   }, []);
 
   return combinations.reduce((result, combo) => {
-    result.push(move(plan, combo, currFloor, 'up'));
-    result.push(move(plan, combo, currFloor, 'down'));
+    if (currentFloor > 0) result.push(move(state, combo, 'down'));
+    if (currentFloor < 3) result.push(move(state, combo, 'up'));
     return result;
-  }, [])
-    .filter(el => el !== null && isSafe(el));
-}
+  }, []).filter(el => isSafe(el));
+};
 
-const isEnd = plan => heuristic(plan) === 0;
+const hash = state =>
+  state.currentFloor + state.plan.reduce((result, floor, i) =>
+    result + i + floor.sort().map(el => dictionary[el]).join(''), '');
+
+let minScore = +Infinity;
+
+const isEnd = state => {
+  const score = heuristic(state);
+
+  if (score < minScore) {
+    console.log(score);
+    minScore = score;
+  }
+
+  return score === 1;
+};
+
 
 const distance = (a, b) => 1;
 
@@ -97,7 +119,7 @@ const path = aStar({
   isEnd,
   distance,
   heuristic,
-  hash: JSON.stringify
+  hash
 });
 
 console.log(path.status, path.cost);
